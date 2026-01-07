@@ -10,9 +10,8 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
-// API endpoint to process queries
+// API endpoint to process queries (must be before static middleware)
 app.post("/api/query", async (req, res) => {
   try {
     const { urls, question } = req.body;
@@ -51,8 +50,11 @@ app.post("/api/query", async (req, res) => {
   }
 });
 
-// Serve the HTML file
-app.get("/", (req, res) => {
+// Serve static files (after API routes)
+app.use(express.static(path.join(__dirname, "public")));
+
+// Serve the HTML file for all other routes (SPA fallback)
+app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
