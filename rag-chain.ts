@@ -14,6 +14,8 @@ export interface GraphInterface {
   generatedAnswer?: string;
   documents?: DocumentInterface[];
   model?: ChatOpenAI;
+  conversationHistory?: Array<{ role: string; content: string }>;
+  vectorStore?: MemoryVectorStore;
 }
 
 const createModel = async () => {
@@ -28,32 +30,88 @@ const createModel = async () => {
 const gradeGeneratedAnswer = async (state: GraphInterface) => {
   const model = state.model ?? (await createModel());
   
+  // Only grade if we have a generated answer
+  if (!state.generatedAnswer || state.generatedAnswer.trim() === "") {
+    return {gradeGeneratedAnswer: "I couldn't find a relevant answer to your question. Can I assist you with anything else?"};
+  }
+  
   const gradePrompter = ChatPromptTemplate.fromTemplate(
-    "You are a grader deciding if a generated answer is relevant to a question.\n\nQuestion:\n{question}\n\nGenerated Answer:\n{generatedAnswer}\n\nAnswer with a single word: 'yes' or 'no'."
+    `You are a grader deciding if a generated answer is relevant and helpful for a question.
+Consider an answer relevant if it:
+- Directly answers the question
+- Provides related information that could be useful
+- Mentions the topic even if incomplete
+
+Question: {question}
+
+Generated Answer: {generatedAnswer}
+
+Answer with a single word: 'yes' or 'no'.`
   );
   
   const graderChain = gradePrompter.pipe(model).pipe(new StringOutputParser());
-  const result = await graderChain.invoke({
-    question: state.question,
-    generatedAnswer: state.generatedAnswer ?? "",
-  });
-  if (String(result).toLowerCase().includes("no")) {
-    return {gradeGeneratedAnswer: "Sorry, I don't know the answer to that question."};
+  
+  try {
+    const result = await graderChain.invoke({
+      question: state.question,
+      generatedAnswer: state.generatedAnswer ?? "",
+    });
+    
+    // Only reject if explicitly "no" - be more lenient
+    if (String(result).toLowerCase().trim() === "no") {
+      console.log(`[gradeGeneratedAnswer] Answer rejected, but returning it anyway with a note`);
+      // Return the answer anyway, but with a note
+      return {
+        ...state,
+        generatedAnswer: state.generatedAnswer + " (Note: This information may be incomplete based on available documents.)"
+      };
+    }
+  } catch (error) {
+    console.warn(`[gradeGeneratedAnswer] Error grading answer, returning it anyway:`, error);
+    // If grading fails, return the answer anyway
   }
+  
   return state;
 };
 
 const generateAnswer = async (state: GraphInterface) => {
   const model = state.model ?? (await createModel());
   const documents = (state.documents ?? []) as Document[];
+  const conversationHistory = state.conversationHistory ?? [];
   
-  // Create RAG prompt template
+  // Format conversation history for context
+  const historyContext = conversationHistory.length > 0
+    ? conversationHistory
+        .slice(-6) // Keep last 6 messages for context
+        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+        .join("\n")
+    : "";
+  
+  // Create RAG prompt template with conversation history
   const ragPrompt = ChatPromptTemplate.fromTemplate(
-    "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.\n\nContext:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+    `You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question accurately and comprehensively.
+
+Instructions:
+- Extract relevant information from the context to answer the question
+- If the context contains the answer, provide it clearly
+- If the context doesn't contain enough information, say what you can determine from the available context
+- Be specific and cite information from the context when possible
+- Keep the answer informative but concise (2-4 sentences)
+
+${historyContext ? `Previous conversation:\n${historyContext}\n\n` : ""}Context from documents:\n{context}
+
+Question: {question}
+
+Answer:`
   );
   
   // Format documents as context string
   const context = documents.map(doc => doc.pageContent).join("\n\n");
+  
+  console.log(`[generateAnswer] Using ${documents.length} document(s) with total context length: ${context.length} chars`);
+  if (documents.length === 0) {
+    console.warn(`[generateAnswer] WARNING: No documents provided for answer generation`);
+  }
   
   const ragChain = ragPrompt.pipe(model).pipe(new StringOutputParser());
   const generatedAnswer = await ragChain.invoke({
@@ -61,6 +119,7 @@ const generateAnswer = async (state: GraphInterface) => {
     context: context
   });
   
+  console.log(`[generateAnswer] Generated answer length: ${generatedAnswer.length} chars`);
   return {generatedAnswer};
 };
 
@@ -81,22 +140,43 @@ const documentGrader = async (state: GraphInterface) => {
 
   console.log(`[documentGrader] Grading ${docs.length} document(s) for relevance`);
 
+  // Improved prompt to be less strict - consider partial relevance
   const gradePrompter = ChatPromptTemplate.fromTemplate(
-    "You are a grader deciding if a document is relevant to a question.\n\nQuestion: {question}\n\nDocument: {document}\n\nAnswer with a single word: 'yes' or 'no'. Do not return any other text."
+    `You are a grader deciding if a document is relevant to a question. 
+A document is relevant if it contains information that could help answer the question, even partially.
+Consider documents relevant if they mention the topic, location, or related concepts.
+
+Question: {question}
+
+Document: {document}
+
+Answer with a single word: 'yes' or 'no'. Do not return any other text.`
   );
 
   const docGrader = gradePrompter.pipe(model).pipe(new StringOutputParser());
   const relevantDocs: Document[] = [];
 
   for (const doc of docs) {
-    const result = await docGrader.invoke({
-      question: state.question,
-      document: doc.pageContent,
-    });
+    try {
+      const result = await docGrader.invoke({
+        question: state.question,
+        document: doc.pageContent.substring(0, 1000), // Limit document size for grading to avoid token limits
+      });
 
-    if (String(result).toLowerCase().includes("yes")) {
+      if (String(result).toLowerCase().includes("yes")) {
+        relevantDocs.push(doc);
+      }
+    } catch (error) {
+      // If grading fails, include the document anyway to avoid losing potentially relevant info
+      console.warn(`[documentGrader] Error grading document, including it anyway:`, error);
       relevantDocs.push(doc);
     }
+  }
+
+  // If no documents passed grading, keep at least the top 3 most similar ones
+  if (relevantDocs.length === 0 && docs.length > 0) {
+    console.log(`[documentGrader] No documents passed strict grading, keeping top ${Math.min(3, docs.length)} documents`);
+    relevantDocs.push(...docs.slice(0, Math.min(3, docs.length)));
   }
 
   console.log(`[documentGrader] Found ${relevantDocs.length} relevant document(s) out of ${docs.length}`);
@@ -112,8 +192,8 @@ export async function buildVectorStore(urls: string[]) {
   );
 
   const textSplitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 250,
-    chunkOverlap: 20,
+    chunkSize: 500,  // Increased from 250 to capture more context
+    chunkOverlap: 50,  // Increased overlap to prevent losing context at boundaries
   });
 
   const splitDocs = await textSplitter.splitDocuments(docs.flat());
@@ -134,7 +214,7 @@ export async function retrieveDoc(
 ): Promise<{ documents: Document[] }> {
   const vectorStoreInstance = await buildVectorStore(urls);
   const retrievedDocs = await vectorStoreInstance
-    .asRetriever()
+    .asRetriever({ k: 10 })  // Retrieve top 10 documents
     .invoke(question);
 
   return { documents: retrievedDocs };
@@ -143,10 +223,27 @@ export async function retrieveDoc(
 // Node function for LangGraph that takes state
 const retrieveDocNode = async (state: GraphInterface) => {
   const urls = state.urls ?? [];
+  const vectorStore = state.vectorStore;
+  
   console.log(`[retrieveDocNode] Retrieving documents for question: "${state.question}" from ${urls.length} URL(s)`);
-  const result = await retrieveDoc(urls, state.question);
-  console.log(`[retrieveDocNode] Retrieved ${result.documents.length} document(s) from vector store`);
-  return { documents: result.documents };
+  
+  // Use provided vector store or build a new one
+  let vectorStoreInstance: MemoryVectorStore;
+  if (vectorStore) {
+    vectorStoreInstance = vectorStore;
+  } else {
+    const result = await retrieveDoc(urls, state.question);
+    console.log(`[retrieveDocNode] Retrieved ${result.documents.length} document(s) from vector store`);
+    return { documents: result.documents };
+  }
+  
+  // Retrieve more documents to increase chances of finding relevant information
+  const retrievedDocs = await vectorStoreInstance
+    .asRetriever({ k: 10 })  // Retrieve top 10 documents instead of default (usually 4)
+    .invoke(state.question);
+  
+  console.log(`[retrieveDocNode] Retrieved ${retrievedDocs.length} document(s) from vector store`);
+  return { documents: retrievedDocs };
 };
 
 // Node function for LangGraph that creates model
@@ -176,6 +273,14 @@ const GraphState = Annotation.Root({
   }),
   model: Annotation<ChatOpenAI>({
     reducer: (x: ChatOpenAI, y: ChatOpenAI) => y ?? x,
+    default: () => undefined as any,
+  }),
+  conversationHistory: Annotation<Array<{ role: string; content: string }>>({
+    reducer: (x, y) => y ?? x,
+    default: () => [],
+  }),
+  vectorStore: Annotation<MemoryVectorStore>({
+    reducer: (x: MemoryVectorStore, y: MemoryVectorStore) => y ?? x,
     default: () => undefined as any,
   }),
 });

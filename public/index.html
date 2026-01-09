@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG LangChain Agent - Query Interface</title>
+    <title>RAG Chatbot - LangChain Agent</title>
     <style>
         * {
             margin: 0;
@@ -14,119 +14,73 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            height: 100vh;
+            margin: 0;
+            padding: 0;
             overflow: hidden;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            flex-shrink: 0;
         }
 
         .header h1 {
-            font-size: 2.5em;
+            color: #667eea;
+            font-size: 1.8em;
             margin-bottom: 10px;
         }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 1.1em;
-        }
-
-        .content {
-            padding: 40px;
-        }
-
-        .form-group {
-            margin-bottom: 25px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: 600;
-            color: #333;
-            font-size: 1.1em;
-        }
-
-        input[type="text"],
-        textarea {
-            width: 100%;
-            padding: 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 1em;
-            transition: border-color 0.3s;
-        }
-
-        input[type="text"]:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-            font-family: inherit;
+        .url-setup {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
         }
 
         .url-input-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
+            flex: 1;
+        }
+
+        .url-input-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-size: 0.9em;
+            font-weight: 600;
         }
 
         .url-input-group input {
-            flex: 1;
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+
+        .url-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
         }
 
         .btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.95em;
             font-weight: 600;
             transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
         }
 
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-        }
-
-        .btn-secondary:hover {
-            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
-        }
-
-        .btn-danger {
-            background: #dc3545;
-        }
-
-        .btn-danger:hover {
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
         }
 
         .btn:disabled {
@@ -135,183 +89,367 @@
             transform: none;
         }
 
-        .results {
-            margin-top: 30px;
-            display: none;
-        }
-
-        .results.show {
-            display: block;
-        }
-
-        .results-header {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .results-header h2 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-
-        .results-header .meta {
+        .url-status {
+            margin-top: 10px;
+            font-size: 0.85em;
             color: #666;
-            font-size: 0.9em;
         }
 
-        .document-list {
-            max-height: 600px;
+        .url-status.active {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: visible; /* Allow content to be visible - don't clip text */
+            min-height: 0;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
             overflow-y: auto;
-        }
-
-        .document-item {
-            background: #f8f9fa;
+            overflow-x: auto; /* Allow horizontal scroll if needed */
             padding: 20px;
-            margin-bottom: 15px;
+            background: #f8f9fa;
+            scroll-behavior: smooth;
+            max-height: 100%;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Custom scrollbar for chat messages */
+        .chat-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
             border-radius: 10px;
-            border-left: 4px solid #667eea;
         }
 
-        .document-item h3 {
-            color: #667eea;
-            margin-bottom: 10px;
-            font-size: 1em;
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
         }
 
-        .document-content {
-            color: #555;
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            animation: fadeIn 0.3s ease-in;
+            min-width: 0; /* Allow flex shrinking */
+            max-width: 100%; /* Prevent overflow */
+            width: 100%; /* Take full width */
+            box-sizing: border-box;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end; /* User messages on the right */
+        }
+
+        .message.assistant {
+            justify-content: flex-start; /* Assistant messages on the left */
+        }
+
+        .message-content {
+            max-width: 70%;
+            min-width: min-content; /* Allow content to determine minimum width */
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
             line-height: 1.6;
             white-space: pre-wrap;
-            word-wrap: break-word;
+            hyphens: none;
+            overflow: visible;
+            box-sizing: border-box;
+            display: inline-block;
+            vertical-align: top;
         }
 
-        .loading {
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.7em;
+            color: #999;
+            margin-top: 4px;
+            padding: 0 4px;
+        }
+
+        .message.user .message-time {
+            text-align: right;
+        }
+
+        .message.assistant .message-time {
+            text-align: left;
+        }
+
+        .message-wrapper {
+            display: flex;
+            flex-direction: column;
+            max-width: 100%;
+            min-width: 0; /* Allow flex shrinking */
+            overflow: visible; /* Allow content to be visible */
+            width: 100%; /* Take full width of parent */
+        }
+
+        /* Ensure user messages align to the right */
+        .message.user .message-wrapper {
+            align-items: flex-end; /* Align content to the right */
+        }
+
+        /* Ensure assistant messages align to the left */
+        .message.assistant .message-wrapper {
+            align-items: flex-start; /* Align content to the left */
+        }
+
+        .chat-input-container {
+            padding: 15px 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            flex-shrink: 0;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .chat-input-wrapper textarea {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 1em;
+            font-family: inherit;
+            resize: none;
+            min-height: 50px;
+            max-height: 150px;
+        }
+
+        .chat-input-wrapper textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .loading-indicator {
             display: none;
-            text-align: center;
-            padding: 40px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            max-width: 70px;
         }
 
-        .loading.show {
+        .loading-indicator.show {
             display: block;
         }
 
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+        .loading-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .loading-dots span {
+            width: 8px;
+            height: 8px;
+            background: #667eea;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+            animation: bounce 1.4s infinite ease-in-out both;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .loading-dots span:nth-child(1) {
+            animation-delay: -0.32s;
         }
 
-        .error {
+        .loading-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+            0%, 80%, 100% {
+                transform: scale(0);
+            }
+            40% {
+                transform: scale(1);
+            }
+        }
+
+        .error-message {
             background: #fee;
             color: #c33;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
             border-left: 4px solid #c33;
-            display: none;
         }
 
-        .error.show {
-            display: block;
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
         }
 
-        .url-list {
-            margin-top: 10px;
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #667eea;
         }
 
-        .url-tag {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 8px 15px;
+        .sample-questions {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .sample-questions h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+        }
+
+        .question-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .question-chip {
+            background: #f0f0f0;
+            padding: 8px 14px;
             border-radius: 20px;
-            margin: 5px 5px 5px 0;
-            font-size: 0.9em;
-            color: #495057;
-        }
-
-        .url-tag .remove {
-            margin-left: 8px;
+            font-size: 0.85em;
             cursor: pointer;
-            color: #dc3545;
-            font-weight: bold;
+            transition: all 0.2s;
+            border: 1px solid #e0e0e0;
+            color: #333;
         }
 
-        .url-tag .remove:hover {
-            color: #c82333;
+        .question-chip:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 3px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .message-content p {
+            margin: 0.5em 0;
+        }
+
+        .message-content p:first-child {
+            margin-top: 0;
+        }
+
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Ensure body doesn't scroll - only chat messages scroll */
+        html {
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* Container wrapper for proper flex layout */
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            padding: 10px;
+            box-sizing: border-box;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="main-container">
         <div class="header">
-            <h1>🔍 RAG LangChain Agent</h1>
-            <p>Query documents from URLs using Retrieval-Augmented Generation</p>
+        <h1>🤖 RAG Chatbot</h1>
+        <div class="url-setup">
+            <div class="url-input-group">
+                <label for="urls">Document URLs (comma-separated or one per line)</label>
+                <input 
+                    type="text" 
+                    id="urls" 
+                    placeholder="https://example.com/article1, https://example.com/article2"
+                >
+            </div>
+            <button class="btn" id="setupBtn">Setup URLs</button>
         </div>
-
-        <div class="content">
-            <form id="queryForm">
-                <div class="form-group">
-                    <label for="urls">Document URLs (one per line or comma-separated)</label>
-                    <textarea 
-                        id="urls" 
-                        placeholder="https://example.com/article"
-                        rows="4"
-                    ></textarea>
-                    <div class="url-list" id="urlList"></div>
+        <div class="url-status" id="urlStatus">No URLs configured</div>
                 </div>
 
-                <div class="form-group">
-                    <label for="question">Your Question</label>
-                    <textarea 
-                        id="question" 
-                        placeholder="What is Retrieval-Augmented Generation?"
-                        rows="3"
-                    ></textarea>
-                </div>
-
-                <button type="submit" class="btn" id="submitBtn">
-                    🔎 Query Documents
-                </button>
-            </form>
-
-            <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Processing your query... This may take a moment.</p>
+    <div class="chat-container">
+        <div class="chat-messages" id="chatMessages">
+            <div class="empty-state">
+                <h3>👋 Welcome!</h3>
+                <p>Configure your document URLs above and start chatting.</p>
+            </div>
             </div>
 
-            <div class="error" id="error"></div>
-
-            <div class="results" id="results">
-                <div class="results-header">
-                    <h2>📄 Retrieved Documents</h2>
-                    <div class="meta">
-                        <span id="docCount">0</span> document(s) found for your query
-                    </div>
-                </div>
-                <div class="document-list" id="documentList"></div>
+        <div class="chat-input-container">
+            <div class="error-message" id="errorMessage" style="display: none;"></div>
+            <div class="chat-input-wrapper">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Type your message here..."
+                    rows="1"
+                ></textarea>
+                <button class="btn" id="sendBtn" disabled>Send</button>
             </div>
         </div>
     </div>
 
     <script>
-        const form = document.getElementById('queryForm');
-        const loading = document.getElementById('loading');
-        const results = document.getElementById('results');
-        const error = document.getElementById('error');
-        const submitBtn = document.getElementById('submitBtn');
+        let configuredUrls = [];
+        let conversationHistory = [];
+
         const urlInput = document.getElementById('urls');
-        const urlList = document.getElementById('urlList');
+        const setupBtn = document.getElementById('setupBtn');
+        const urlStatus = document.getElementById('urlStatus');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const errorMessage = document.getElementById('errorMessage');
 
         function parseUrls(input) {
             const lines = input.split('\n').map(line => line.trim()).filter(line => line);
@@ -330,131 +468,255 @@
             });
         }
 
-        function displayUrls(urls) {
-            urlList.innerHTML = '';
-            urls.forEach((url, index) => {
-                const tag = document.createElement('span');
-                tag.className = 'url-tag';
-                tag.innerHTML = `
-                    ${url}
-                    <span class="remove" onclick="removeUrl(${index})">×</span>
-                `;
-                urlList.appendChild(tag);
-            });
-        }
-
-        window.removeUrl = function(index) {
+        setupBtn.addEventListener('click', () => {
             const urls = parseUrls(urlInput.value);
-            urls.splice(index, 1);
-            urlInput.value = urls.join('\n');
-            displayUrls(urls);
-        };
-
-        urlInput.addEventListener('input', () => {
-            const urls = parseUrls(urlInput.value);
-            displayUrls(urls);
-        });
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const urls = parseUrls(urlInput.value);
-            const question = document.getElementById('question').value.trim();
-
             if (urls.length === 0) {
                 showError('Please provide at least one valid URL');
                 return;
             }
-
-            if (!question) {
-                showError('Please provide a question');
+            if (urls.length > 3) {
+                showError('Maximum 3 URLs allowed');
                 return;
             }
+            configuredUrls = urls;
+            urlStatus.textContent = `${urls.length} URL(s) configured`;
+            urlStatus.classList.add('active');
+            sendBtn.disabled = false;
+            clearError();
+            
+            // Clear chat and show welcome message
+            chatMessages.innerHTML = `
+                <div class="empty-state">
+                    <h3>✅ URLs Configured!</h3>
+                    <p>You can now start asking questions about the documents.</p>
+                </div>
+            `;
+            conversationHistory = [];
+            
+            // Load sample questions
+            loadSampleQuestions();
+        });
 
-            // Show loading, hide results and error
-            loading.classList.add('show');
-            results.classList.remove('show');
-            error.classList.remove('show');
-            submitBtn.disabled = true;
+        function showError(message) {
+            errorMessage.textContent = `❌ ${message}`;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
 
+        function clearError() {
+            errorMessage.style.display = 'none';
+        }
+
+        function formatMessageText(text) {
+            // Escape HTML first
+            let formatted = escapeHtml(text);
+            
+            // Trim whitespace
+            formatted = formatted.trim();
+            
+            // Replace newlines with <br> tags
+            formatted = formatted.replace(/\n/g, '<br>');
+            
+            // For short messages (like "Hi"), wrap in span to prevent word breaking
+            if (formatted.length < 50 && !formatted.includes('<br>')) {
+                formatted = '<span style="white-space: nowrap; display: inline-block;">' + formatted + '</span>';
+            }
+            // For longer messages, don't wrap in extra spans - let CSS handle it
+            // The text will wrap naturally within the message-content container
+            
+            return formatted;
+        }
+
+        function addMessage(role, content) {
+            // Remove empty state and sample questions if present
+            const emptyState = chatMessages.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            const sampleQuestions = chatMessages.querySelector('.sample-questions');
+            if (sampleQuestions) {
+                sampleQuestions.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="message-wrapper">
+                    <div class="message-content">${formatMessageText(content)}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            
+            chatMessages.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        async function loadSampleQuestions() {
+            if (configuredUrls.length === 0) return;
+            
             try {
-                const response = await fetch('/api/query', {
+                const response = await fetch('/api/sample-questions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ urls, question }),
+                    body: JSON.stringify({ urls: configuredUrls }),
                 });
 
-                // Check if response is ok before parsing
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorData;
-                    try {
-                        errorData = JSON.parse(errorText);
-                    } catch {
-                        errorData = { error: errorText || `Server error: ${response.status}` };
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.questions && data.questions.length > 0) {
+                        showSampleQuestions(data.questions);
                     }
-                    throw new Error(errorData.error || errorData.message || 'Failed to process query');
                 }
-
-                // Get response text first to check if it's empty
-                const responseText = await response.text();
-                
-                if (!responseText || responseText.trim() === '') {
-                    throw new Error('Empty response from server');
-                }
-
-                // Parse JSON
-                let data;
-                try {
-                    data = JSON.parse(responseText);
-                } catch (parseError) {
-                    console.error('JSON parse error:', parseError);
-                    console.error('Response text:', responseText.substring(0, 200));
-                    throw new Error('Invalid JSON response from server');
-                }
-
-                // Display results
-                displayResults(data);
             } catch (err) {
-                console.error('Request error:', err);
-                showError(err.message || 'An error occurred while processing your query');
+                console.error('Error loading sample questions:', err);
+            }
+        }
+
+        function showSampleQuestions(questions) {
+            // Remove existing sample questions
+            const existing = chatMessages.querySelector('.sample-questions');
+            if (existing) {
+                existing.remove();
+            }
+
+            const sampleDiv = document.createElement('div');
+            sampleDiv.className = 'sample-questions';
+            sampleDiv.innerHTML = `
+                <h4>💡 Suggested Questions:</h4>
+                <div class="question-chips">
+                    ${questions.map(q => 
+                        `<div class="question-chip" onclick="askQuestion('${escapeHtml(q).replace(/'/g, "\\'")}')">${escapeHtml(q)}</div>`
+                    ).join('')}
+                </div>
+            `;
+            
+            chatMessages.appendChild(sampleDiv);
+            scrollToBottom();
+        }
+
+        window.askQuestion = function(question) {
+            messageInput.value = question;
+            messageInput.focus();
+            sendMessage();
+        };
+
+        function showLoading() {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'message assistant';
+            loadingDiv.id = 'loadingMessage';
+            loadingDiv.innerHTML = `
+                <div class="loading-indicator show">
+                    <div class="loading-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+            `;
+            chatMessages.appendChild(loadingDiv);
+            scrollToBottom();
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loadingMessage');
+            if (loading) {
+                loading.remove();
+            }
+        }
+
+        function scrollToBottom() {
+            // Use setTimeout to ensure DOM is updated
+            setTimeout(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 100);
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || configuredUrls.length === 0) {
+                return;
+            }
+
+            // Add user message to UI
+            addMessage('user', message);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            
+            // Disable input while processing
+            sendBtn.disabled = true;
+            messageInput.disabled = true;
+            
+            // Show loading indicator
+            showLoading();
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        urls: configuredUrls,
+                        message: message,
+                        conversationHistory: conversationHistory
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || errorData.error || 'Failed to get response');
+                }
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Add assistant response to UI
+                    hideLoading();
+                    addMessage('assistant', data.message);
+                    
+                    // Update conversation history
+                    conversationHistory.push({ role: 'user', content: message });
+                    conversationHistory.push({ role: 'assistant', content: data.message });
+                    
+                    // Reload sample questions after a few messages to get fresh suggestions
+                    if (conversationHistory.length % 4 === 0) {
+                        loadSampleQuestions();
+                    }
+            } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            } catch (err) {
+                hideLoading();
+                showError(err.message || 'An error occurred');
+                addMessage('assistant', 'Sorry, I encountered an error. Please try again.');
             } finally {
-                loading.classList.remove('show');
-                submitBtn.disabled = false;
+                sendBtn.disabled = false;
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
             }
         });
 
-        function displayResults(data) {
-            const docList = document.getElementById('documentList');
-            const docCount = document.getElementById('docCount');
-            
-            docCount.textContent = data.documentCount || 0;
-            
-            docList.innerHTML = '';
-            
-            if (data.documents && data.documents.length > 0) {
-                data.documents.forEach((doc, index) => {
-                    const docItem = document.createElement('div');
-                    docItem.className = 'document-item';
-                    docItem.innerHTML = `
-                        <h3>Document ${index + 1}</h3>
-                        <div class="document-content">${escapeHtml(doc)}</div>
-                    `;
-                    docList.appendChild(docItem);
-                });
-            } else {
-                docList.innerHTML = '<p>No documents found for your query.</p>';
-            }
-
-            results.classList.add('show');
-        }
-
-        function showError(message) {
-            error.textContent = `❌ Error: ${message}`;
-            error.classList.add('show');
-        }
+        // Auto-resize textarea
+        messageInput.addEventListener('input', () => {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
+        });
 
         function escapeHtml(text) {
             const div = document.createElement('div');
@@ -462,9 +724,16 @@
             return div.innerHTML;
         }
 
-        // Initialize URL display
-        urlInput.dispatchEvent(new Event('input'));
+        // Allow Enter to send, Shift+Enter for new line
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!sendBtn.disabled) {
+                    sendMessage();
+                }
+            }
+        });
     </script>
+    </div> <!-- Close main-container -->
 </body>
 </html>
-
